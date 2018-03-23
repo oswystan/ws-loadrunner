@@ -295,11 +295,13 @@ class WorkerGroup {
         for (let worker of this.workers) {
             worker.stop();
         }
+        process.stdout.write('\n');
         logd("worker group stop");
     }
 
     on_report(nothing, conn, worker) {
         if (this.exit) return;
+        process.stdout.write('.');
         this.pool.put(conn);
         let new_conn = this.pool.get();
         worker.run(new_conn, this.emitter_);
@@ -365,8 +367,8 @@ class LoadRunner {
     on_exit() {
         let runner = this;
         runner.main_report.stop();
-        runner.cpool.stop();
         runner.worker_group.stop();
+        runner.cpool.stop();
         runner.cpool.close();
         runner.main_report.generate();
     }
