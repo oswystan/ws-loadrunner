@@ -42,6 +42,8 @@ const logd = (...args) => LOG_CUR_LEVEL >= LOG_DEBUG   && console.log.apply  (nu
 const logi = (...args) => LOG_CUR_LEVEL >= LOG_INFO    && console.info.apply (null, ['[I|' + ts() + ']', ...args]);
 const logw = (...args) => LOG_CUR_LEVEL >= LOG_WARN    && console.warn.apply (null, ['[W|' + ts() + ']', ...args]);
 const loge = (...args) => LOG_CUR_LEVEL >= LOG_ERROR   && console.error.apply(null, ['[E|' + ts() + ']', ...args]);
+const log  = (...args) => process.stdout.write(...args);
+const progress = ["-", "\\", "|", "/"];
 
 /*
  ****************************************************************
@@ -139,12 +141,12 @@ class Emitter {
  * report classes
  ****************************************************************
  */
-class WorkerReport {
-    constructor() {
+class WorkerReport
+{    constructor() {
         this.start           = 0;
         this.end             = 0;
         this.total_request   = 0;
-        this.serve_in_msec   = 0;
+        this.total_response_ms   = 0;
         this.min_response_ms = Number.MAX_VALUE;
         this.max_response_ms = 0;
         this.result          = ERRNO.SUCC;
@@ -153,18 +155,21 @@ class WorkerReport {
 
 class MainReport {
     constructor(argv, emitter) {
-        this.url              = argv.url;
-        this.connections      = argv.amount;
-        this.cocurrency       = argv.cocurrency;
-        this.request_per_sec  = 0;
-        this.max_response_ms  = 0;
-        this.min_response_ms  = Number.MAX_VALUE;
-        this.total_request    = 0;
-        this.serve_in_msec    = 0;
-        this.duration_in_sec  = 0;
-        this.start_time       = new Date();
-        this.end_time         = new Date();
-        this.errors           = 0;
+        this.url               = argv.url;
+        this.connections       = argv.amount;
+        this.cocurrency        = argv.cocurrency;
+        this.tps               = 0;
+        this.total_response_ms = 0;
+        this.max_response_ms   = 0;
+        this.min_response_ms   = Number.MAX_VALUE;
+        this.avg_response_ms   = 0;
+        this.total_request     = 0;
+        this.duration_in_sec   = 0;
+        this.start_time        = new Date();
+        this.end_time          = new Date();
+        this.errors            = 0;
+
+        this.total_report_    = 0;
         this.reporter_handler = this.worker_report.bind(this);
         this.emitter_         = emitter;
     }
@@ -177,11 +182,12 @@ class MainReport {
         this.emitter_.off("worker-report", this.reporter_handler);
         this.end_time = new Date();
         this.duration_in_sec = (this.end_time - this.start_time) / 1000;
-        this.request_per_sec = this.total_request * 1000 / this.serve_in_msec;
+        this.tps = this.total_request / this.duration_in_sec;
+        this.avg_response_ms = this.total_response_ms / this.total_request;
     }
     worker_report(report, nothing1, nothing2) {
         this.total_request += report.total_request;
-        this.serve_in_msec += (report.serve_in_msec);
+        this.total_response_ms += (report.total_response_ms);
         if (this.min_response_ms > report.min_response_ms) {
             this.min_response_ms = report.min_response_ms;
         }
@@ -191,22 +197,24 @@ class MainReport {
         if (report.result != ERRNO.SUCC) {
             this.errors++;
         }
+        log("running: "+progress[this.total_report_++ % 4] + "\r");
     }
 
     generate() {
         let a = '\n';
-        a += printf("%16s : %s\n", "url", this.url);
-        a += printf("%16s : %d\n", "connections", this.connections);
-        a += printf("%16s : %d\n", "cocurrency", this.cocurrency);
-        a += printf("%16s : %d\n", "request_per_sec", this.request_per_sec);
-        a += printf("%16s : %d\n", "max_response_ms", this.max_response_ms);
-        a += printf("%16s : %d\n", "min_response_ms", this.min_response_ms);
-        a += printf("%16s : %d\n", "total_request", this.total_request);
-        a += printf("%16s : %d\n", "serve_in_msec", this.serve_in_msec);
-        a += printf("%16s : %d\n", "duration_in_sec", this.duration_in_sec);
-        a += printf("%16s : %s\n", "start_time", this.start_time.toISOString());
-        a += printf("%16s : %s\n", "end_time", this.end_time.toISOString());
-        a += printf("%16s : %d\n", "errors", this.errors);
+        a += printf("%18s : %s\n", "url", this.url);
+        a += printf("%18s : %d\n", "connections", this.connections);
+        a += printf("%18s : %d\n", "cocurrency", this.cocurrency);
+        a += printf("%18s : %d\n", "tps", this.tps);
+        a += printf("%18s : %d\n", "avg_response_ms", this.avg_response_ms);
+        a += printf("%18s : %d\n", "max_response_ms", this.max_response_ms);
+        a += printf("%18s : %d\n", "min_response_ms", this.min_response_ms);
+        a += printf("%18s : %d\n", "total_request", this.total_request);
+        a += printf("%18s : %d\n", "total_response_ms", this.total_response_ms);
+        a += printf("%18s : %d\n", "duration_in_sec", this.duration_in_sec);
+        a += printf("%18s : %s\n", "start_time", this.start_time.toISOString());
+        a += printf("%18s : %s\n", "end_time", this.end_time.toISOString());
+        a += printf("%18s : %d\n", "errors", this.errors);
         console.log(a);
     }
 };
@@ -226,6 +234,7 @@ class ConnectionPool {
             let ws = new WebSocket(url);
             ws.on('open', function() {
                 pool.conn_pool.push(ws);
+                log(printf("\ropening connection:%8d\r", pool.conn_pool.length));
                 if (pool.conn_pool.length >= size) {
                     logi("all connections created");
                     pool.listener.emit("connection-pool:created");
@@ -233,6 +242,7 @@ class ConnectionPool {
             });
             ws.on('close', function() {
                 pool.conn_pool.splice(pool.conn_pool.indexOf(ws)>>>0, 1);
+                log(printf("\rclosing connection:%8d\r", pool.conn_pool.length));
                 if (pool.conn_pool.length === 0) {
                     logi("all connections closed");
                     pool.listener.emit("connection-pool:closed");
@@ -271,7 +281,7 @@ class WorkerGroup {
         this.workers = [];
         this.factory = new WorkerFactory();
         while(size > 0) {
-            this.workers.push(this.factory.create("random"));
+             this.workers.push(this.factory.create("random"));
             size--;
         }
         this.pool = null;
@@ -295,13 +305,11 @@ class WorkerGroup {
         for (let worker of this.workers) {
             worker.stop();
         }
-        process.stdout.write('\n');
         logd("worker group stop");
     }
 
     on_report(nothing, conn, worker) {
         if (this.exit) return;
-        process.stdout.write('.');
         this.pool.put(conn);
         let new_conn = this.pool.get();
         worker.run(new_conn, this.emitter_);
@@ -323,15 +331,14 @@ class RandomWorker extends Worker {
         setTimeout(()=>{
             let report = new WorkerReport();
             report.result          = random(3);
-            report.serve_in_msec   = random(50);
+            report.total_response_ms   = random(50);
             report.max_response_ms = random(80);
             report.min_response_ms = random(20);
             report.total_request   = random(4);
             emitter.aemit("worker-report", report, conn, worker);
         }, random(100));
     }
-    stop() {
-    }
+    stop() {}
 };
 
 class WorkerFactory {
@@ -392,7 +399,7 @@ function main() {
     let yargs = require("yargs")
         .option('u', {
             alias: 'url',
-            default: 'wss://server.org/random',
+            default: 'wss://serverip/random',
             describe: 'websocket url',
         })
         .option('a', {
