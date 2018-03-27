@@ -30,6 +30,11 @@ class ClusterMaster {
     run(cluster, argv) {
         logi("master running...");
 
+        this.msg_create  = {type:'request', cmd:'create',  name:argv.name};
+        this.msg_destroy = {type:'request', cmd:'destroy', name:argv.name};
+        this.msg_start   = {type:'request', cmd:'start',   name:argv.name};
+        this.msg_stop    = {type:'request', cmd:'stop',    name:argv.name};
+
         this.workers     = [];
         this.reset_counter();
         this.cnt_workers = argv.worker;
@@ -40,7 +45,7 @@ class ClusterMaster {
         cluster.on('online', (worker)=>{
             this.workers.push(worker);
             if (this.workers.length === argv.worker) {
-                logi("all workers online");
+                logi("all workers online:");
                 this.dump_workers();
                 this.send_worker_request(this.msg_create);
             }
@@ -81,7 +86,7 @@ class ClusterMaster {
     dump_workers() {
         let workers = this.workers;
         workers.forEach((worker) => {
-            logd("worker:", worker.process.pid);
+            logi("worker:", worker.process.pid);
         });
     }
 
@@ -96,10 +101,10 @@ class ClusterMaster {
     }
     on_resp_destroy(msg) {
         if (msg.error == 0) {
-            this.cnt_destroied++;
+            this.cnt_destroyed++;
         }
-        if(this.cnt_destroied === this.cnt_workers) {
-            logd("all workers destroied");
+        if(this.cnt_destroyed === this.cnt_workers) {
+            logd("all workers destroyed");
             this.send_worker_request(this.msg_exit);
         }
     }
@@ -131,7 +136,7 @@ class ClusterMaster {
 
     reset_counter() {
         this.cnt_created   = 0;
-        this.cnt_destroied = 0;
+        this.cnt_destroyed = 0;
         this.cnt_started   = 0;
         this.cnt_stoped    = 0;
         this.cnt_workers   = 0;

@@ -21,7 +21,7 @@ const errno  = report.ERRNO;
 
 class ClusterWorker {
     constructor() {
-        this.msg_handler = this.on_msg.bind(this);
+        this.msg_handler = this.on_master_msg.bind(this);
     }
     run(argv) {
         process.on("message", this.msg_handler);
@@ -29,7 +29,7 @@ class ClusterWorker {
         this.main_report.start();
     }
 
-    on_msg(msg) {
+    on_master_msg(msg) {
         if (msg.type === "request") {
             switch(msg.cmd)
             {
@@ -56,6 +56,7 @@ class ClusterWorker {
                 }
                 case "create" :
                 {
+                    logd("create", msg.name);
                     process.send({type:"response", cmd: msg.cmd, error: errno.SUCC});
                     break;
                 }
@@ -71,6 +72,12 @@ class ClusterWorker {
             }
         }
     }
+
+    on_master_create_req(msg) {}
+    on_master_destroy_req(msg) {}
+    on_master_start_req(msg) {}
+    on_master_stop_req(msg) {}
+    on_master_exit_req(msg) {}
 };
 
 module.exports = function() {

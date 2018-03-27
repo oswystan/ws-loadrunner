@@ -55,6 +55,12 @@ function main() {
             type: 'number',
             describe: 'workers you want to run'
         })
+        .option('n', {
+            alias: 'name',
+            default: "random",
+            type: 'string',
+            describe: 'worker name'
+        })
         .help('h').alias('h', 'help')
         .usage("usage: cluster [options]")
         .version(false)
