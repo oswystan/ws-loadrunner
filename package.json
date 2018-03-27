@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/oswystan/ws-loadrunner#readme",
   "dependencies": {
+    "cluster": "^0.7.7",
     "printf": "^0.2.5",
     "ws": "^5.1.0",
     "yargs": "^11.0.0"

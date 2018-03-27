@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+/*
+ *********************************************************************************
+ *                     Copyright (C) 2018 wystan
+ *
+ *       filename: cluster.js
+ *    description:
+ *        created: 2018-03-27 14:51:41
+ *         author: wystan
+ *
+ *********************************************************************************
+ */
+
+const cluster = require('cluster');
+
+function run_cluster(argv) {
+    if (cluster.isMaster) {
+        let master = require("./cluster_master")();
+        master.run(cluster, argv);
+    } else {
+        let worker = require("./cluster_worker")();
+        worker.run(argv);
+    }
+}
+
+function main() {
+    let yargs = require("yargs")
+        .option('u', {
+            alias: 'url',
+            //default: 'wss://serverip/random',
+            default: 'ws://10.1.250.219:5000/socket.io/?transport=websocket',
+            describe: 'websocket url',
+        })
+        .option('a', {
+            alias: 'amount',
+            default: 1,
+            type: 'number',
+            describe: 'connections you want to create'
+        })
+        .option('c', {
+            alias: 'cocurrency',
+            default: 1,
+            type: 'number',
+            describe: 'cocurrency per second'
+        })
+        .option('t', {
+            alias: 'time',
+            default: 2,
+            type: 'number',
+            describe: 'seconds you want to run'
+        })
+        .option('w', {
+            alias: 'worker',
+            default: 1,
+            type: 'number',
+            describe: 'workers you want to run'
+        })
+        .help('h').alias('h', 'help')
+        .usage("usage: cluster [options]")
+        .version(false)
+        .wrap(null);
+
+    run_cluster(yargs.argv);
+}
+
+/************************************* END **************************************/
+main();
