@@ -121,6 +121,7 @@ class ClusterMaster {
     }
     on_report(worker, msg) {
         worker.main_report_ = msg.report;
+        logd(msg.report);
         this.cnt_report++;
         if (this.cnt_report === this.cnt_workers) {
             logd("all report received.");
