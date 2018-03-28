@@ -87,7 +87,6 @@ class LoadRunner {
     }
     on_connection_pool_finished() {
         this.outer_emitter.aemit("prepared");
-        logd("prepared");
     }
     on_connection_progress(msg) {
         this.outer_emitter.aemit("connection", msg);
@@ -127,6 +126,7 @@ class LoadRunner {
 class ConnectionPool {
     constructor() {
         this.pool = [];
+        this.active = [];
         this.needed = 0;
         this.url = "";
 
@@ -180,16 +180,61 @@ class ConnectionPool {
         this.outer_emitter.on(msg, handler);
     }
 
-    get() { return null; }
-    put(connection) {}
+    start() {
+        this.pool.forEach( c => {
+            this.active.push(c);
+        });
+    }
+    stop() {
+        this.active = [];
+    }
+
+    get() {
+        return this.pool.pop();
+    }
+    put(connection) {
+        this.active.push(connection);
+    }
 };
 
 class WorkerGroup {
-    constructor() {}
-    create(cnt, app_name) {}
-    destroy() {}
-    start(connection_pool) {}
-    stop() {}
+    constructor() {
+        this.exit = 0;
+        this.apps = [];
+        this.pool = null;
+        this.outer_emitter = emitter();
+    }
+    create(cnt, app_name) {
+        while (cnt > 0) {
+            this.apps.push(require('./' + app_name).WorkerApp());
+            cnt--;
+        }
+    }
+    destroy() {
+        this.apps = [];
+    }
+    start(connection_pool) {
+        this.exit = 0;
+        this.apps.forEach(app => {
+            app.start(connection_pool.get());
+        });
+    }
+    stop() {
+        this.exit = 1;
+        this.apps.forEach(app => {
+            app.stop();
+        });
+    }
+
+    on_app_finished(report) {
+        this.outer_emitter.aemit("progress");
+        if (this.exit) {
+            this.outer_emitter.aemit("finished");
+        }
+    }
+    on_app_error(err) {
+        this.outer_emitter.aemit("error", err);
+    }
 
     /**
      * messages avaliable:
@@ -197,7 +242,9 @@ class WorkerGroup {
      *     error    - handler({error: ERRNO, desc: ''})
      *     progress - handler();
      */
-    on(msg, handler) {}
+    on(msg, handler) {
+        this.outer_emitter.on(msg, handler);
+    }
 };
 
 class WorkerApp {

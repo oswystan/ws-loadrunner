@@ -16,11 +16,11 @@ class RandomAppWorker {
     constructor() {}
 };
 
-module.exports.url = ""
+module.exports.url = "";
 
 module.exports.WorkerApp = function() {
     return new RandomAppWorker();
-}
+};
 
 /************************************* END **************************************/
 
