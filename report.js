@@ -11,10 +11,12 @@
  */
 
 const ERRNO = {
-    SUCC       : 0,
-    SERVER_ERR : 1,
-    CONN_ERR   : 2,
-    INVAL      : 3,
+    SUCC             : 0,
+    SERVER_ERR       : 1,
+    CONN_ERR         : 2,
+    INVAL            : 3,
+    MODULE_NOT_FOUND : 4,
+    EPERM            : 5,
 };
 
 class WorkerReport {

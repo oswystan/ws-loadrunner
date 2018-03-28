@@ -15,6 +15,9 @@ const logd = require("./log").logd;
 const logi = require("./log").logi;
 const logw = require("./log").logw;
 const loge = require("./log").loge;
+const log  = require("./log").log;
+const emitter = require('./emitter');
+const printf = require('printf');
 
 class ClusterMaster {
     constructor() {
@@ -26,6 +29,7 @@ class ClusterMaster {
         this.msg_exit    = {type:'request', cmd:'exit'};
 
         this.reset_counter();
+        this.inner_emitter = emitter();
     }
     run(cluster, argv) {
         logi("master running...");
@@ -43,6 +47,8 @@ class ClusterMaster {
         }
 
         cluster.on('online', (worker)=>{
+            worker.connection = {connected: 0, failed: 0};
+            worker.progress = {counter: 0};
             this.workers.push(worker);
             if (this.workers.length === argv.worker) {
                 logi("all workers online:");
@@ -59,21 +65,19 @@ class ClusterMaster {
             }
         });
 
+        this.inner_emitter.on("response create", this.on_resp_create.bind(this));
+        this.inner_emitter.on("response destroy", this.on_resp_destroy.bind(this));
+        this.inner_emitter.on("response start", this.on_resp_start.bind(this));
+        this.inner_emitter.on("response stop", this.on_resp_stop.bind(this));
+        this.inner_emitter.on("notify report", this.on_report.bind(this));
+        this.inner_emitter.on("notify error", this.on_error.bind(this));
+        this.inner_emitter.on("notify connection", this.on_notify_connection.bind(this));
+        this.inner_emitter.on("notify progress", this.on_notify_progress.bind(this));
+
         cluster.on('message', (worker, message, handle) => {
-            // logd(message);
-            if (message.type === "response") {
-                if (message.cmd === "create") {
-                    this.on_resp_create(message);
-                } else if (message.cmd === "destroy") {
-                    this.on_resp_destroy(message);
-                } else if (message.cmd === "start") {
-                    this.on_resp_start(message);
-                } else if (message.cmd === "stop") {
-                    this.on_resp_stop(message);
-                }
-            } else if(message.type ==="report") {
-                this.on_report(worker, message);
-            }
+            //logd(message);
+            let msg = message.type + " " + message.cmd;
+            this.inner_emitter.aemit(msg, message, worker);
         });
     }
 
@@ -91,9 +95,12 @@ class ClusterMaster {
     }
 
     on_resp_create(msg) {
-        if (msg.error == 0) {
-            this.cnt_created++;
+        if (msg.error != 0) {
+            loge("fail to create runner: ", msg.error, msg.desc);
+            return;
         }
+
+        this.cnt_created++;
         if(this.cnt_created === this.cnt_workers) {
             logd("all workers created");
             this.send_worker_request(this.msg_start);
@@ -121,17 +128,31 @@ class ClusterMaster {
             this.cnt_stoped++;
         }
         if(this.cnt_stoped === this.cnt_workers) {
+            logd("all workers stoped");
             this.send_worker_request(this.msg_destroy);
         }
     }
-    on_report(worker, msg) {
+    on_report(msg, worker) {
         worker.main_report_ = msg.report;
-        logd(msg.report);
+        logd("got one report: \n", msg.report);
         this.cnt_report++;
         if (this.cnt_report === this.cnt_workers) {
             logd("all report received.");
             this.send_worker_request(this.msg_stop);
         }
+    }
+    on_error(msg, worker) {
+        loge(msg);
+        process.exit(msg.error);
+    }
+    on_notify_connection(msg, worker) {
+        worker.connection.connected = msg.data.connected;
+        worker.connection.failed = msg.data.failed;
+        this.show_connection_status();
+    }
+    on_notify_progress(msg, worker) {
+        worker.progress = msg.data;
+        this.show_progress_status();
     }
 
     reset_counter() {
@@ -141,6 +162,24 @@ class ClusterMaster {
         this.cnt_stoped    = 0;
         this.cnt_workers   = 0;
         this.cnt_report    = 0;
+    }
+
+    show_connection_status() {
+        let cnt_connected = 0;
+        let cnt_failed = 0;
+        this.workers.forEach(worker => {
+            cnt_connected += worker.connection.connected;
+            cnt_failed += worker.connection.failed;
+        });
+        log(printf("%10s : %8d  %10s : %8d\r", "connected", cnt_connected, "failed", cnt_failed));
+    }
+
+    show_progress_status() {
+        let counter = 0;
+        this.workers.forEach(worker => {
+            counter += worker.progress.counter;
+        });
+        log(printf("%24s : %16d\r", "worker report received", counter));
     }
 };
 
