@@ -30,7 +30,6 @@ class WorkerReport {
         this.result            = ERRNO.SUCC;
     }
 
-
     jsonify() {
         return {
             start             : this.start             ,
@@ -121,12 +120,37 @@ class MainReport {
     }
 };
 
-module.exports = function(name, argv) {
-    if (name === "worker") {
-        return new WorkerReport();
-    } else if (name === "main") {
-        return new MainReport(argv);
+class ClusterReport {
+    constructor(argv) {
+        this.workers = argv.worker;
+        this.workers_succ = 0;
+        this.workers_fail = 0;
+        this.app = argv.name;
+        this.main = new MainReport(argv);
     }
+
+    jsonify() {
+        return {};
+    }
+
+    stringify() {
+        let ret = "";
+        return ret;
+    }
+};
+
+const ReportFactory = [
+    { name: "main",    create: argv => new MainReport(argv)    },
+    { name: "worker",  create: argv => new WorkerReport()      },
+    { name: "cluster", create: argv => new ClusterReport(argv) },
+];
+
+module.exports = function(name, argv) {
+    let factory = ReportFactory.find( f => f.name === name);
+    if (factory) {
+        return factory.create(argv);
+    }
+    return null;
 };
 
 module.exports.ERRNO = ERRNO;

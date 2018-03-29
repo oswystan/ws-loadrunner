@@ -53,7 +53,11 @@ class Emitter {
     off(event, handler) {
         let handlers = this._handlers[event];
         if (!handlers) return;
-        handlers.splice(handlers.indexOf(handler)>>>0, 1);
+        if (handler) {
+            handlers.splice(handlers.indexOf(handler)>>>0, 1);
+        } else {
+            handlers = [];
+        }
     };
 
     /**

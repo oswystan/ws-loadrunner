@@ -24,9 +24,9 @@ const emitter    = require('./emitter');
 
 class ClusterWorker {
     constructor() {
-        this.msg_handler = this.on_master_msg.bind(this);
+        this.msg_handler   = this.on_master_msg.bind(this);
         this.inner_emitter = emitter();
-        this.cur_msg = null;
+        this.cur_msg       = null;
     }
 
     run(argv) {
@@ -35,6 +35,9 @@ class ClusterWorker {
         process.on("message", this.msg_handler);
     }
 
+    //==================================================
+    // master request handler
+    //==================================================
     on_master_msg(msg) {
         this.cur_msg = msg;
         this.inner_emitter.emit(msg.type + " " + msg.cmd, msg);
@@ -79,6 +82,9 @@ class ClusterWorker {
         process.exit(code);
     }
 
+    //==================================================
+    // load runner callback handler
+    //==================================================
     on_runner_prepared() {
         this.send_resp({type:"response", cmd: "create", error: errno.SUCC});
     }
@@ -103,6 +109,9 @@ class ClusterWorker {
         this.send_notify({type: "notify", cmd: "progress", data: msg});
     }
 
+    //==================================================
+    // private function
+    //==================================================
     install_master_handler() {
         this.inner_emitter.on("request create",  this.on_master_create_req.bind(this));
         this.inner_emitter.on("request destroy", this.on_master_destroy_req.bind(this));

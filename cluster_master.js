@@ -81,10 +81,14 @@ class ClusterMaster {
         });
     }
 
-    send_worker_request(req) {
-        this.workers.forEach((worker) => {
+    send_worker_request(req, worker) {
+        if (worker) {
             worker.send(req);
-        });
+        } else {
+            this.workers.forEach((worker) => {
+                worker.send(req);
+            });
+        }
     }
 
     dump_workers() {
@@ -94,9 +98,10 @@ class ClusterMaster {
         });
     }
 
-    on_resp_create(msg) {
+    on_resp_create(msg, worker) {
         if (msg.error != 0) {
             loge("fail to create runner: ", msg.error, msg.desc);
+            this.send_worker_request(this.msg_exit, worker);
             return;
         }
 
@@ -107,9 +112,7 @@ class ClusterMaster {
         }
     }
     on_resp_destroy(msg) {
-        if (msg.error == 0) {
-            this.cnt_destroyed++;
-        }
+        this.cnt_destroyed++;
         if(this.cnt_destroyed === this.cnt_workers) {
             logd("all workers destroyed");
             this.send_worker_request(this.msg_exit);
@@ -143,7 +146,7 @@ class ClusterMaster {
     }
     on_error(msg, worker) {
         loge(msg);
-        process.exit(msg.error);
+        this.send_worker_request(this.msg_exit, worker);
     }
     on_notify_connection(msg, worker) {
         worker.connection.connected = msg.data.connected;
@@ -171,7 +174,7 @@ class ClusterMaster {
             cnt_connected += worker.connection.connected;
             cnt_failed += worker.connection.failed;
         });
-        log(printf("%10s : %8d  %10s : %8d\r", "connected", cnt_connected, "failed", cnt_failed));
+        log(printf("%9s : [%8d]  %10s : [%8d]\r", "connected", cnt_connected, "failed", cnt_failed));
     }
 
     show_progress_status() {
@@ -179,7 +182,7 @@ class ClusterMaster {
         this.workers.forEach(worker => {
             counter += worker.progress.counter;
         });
-        log(printf("%24s : %16d\r", "worker report received", counter));
+        log(printf("%22s : [%10d]\r", "worker report received", counter));
     }
 };
 
