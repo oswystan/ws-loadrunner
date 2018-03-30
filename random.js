@@ -9,8 +9,13 @@
  *
  *********************************************************************************
  */
-
+const logv   = require("./log").logv;
+const logd   = require("./log").logd;
+const logi   = require("./log").logi;
+const logw   = require("./log").logw;
+const loge   = require("./log").loge;
 const report = require('./report');
+const emitter = require('./emitter');
 
 function random(max) {
     return Math.floor(Math.random() * max);
@@ -23,6 +28,7 @@ class RandomAppWorker {
         this.worker_report = null;
     }
     start(connection) {
+
         if (connection) {
             this.connection = connection;
             connection.removeAllListeners("message");
@@ -41,7 +47,7 @@ class RandomAppWorker {
             worker_report.min_response_ms = random(worker_report.total_response_ms/2);
             worker_report.max_response_ms = random(worker_report.total_response_ms);
 
-            app.outer_emitter.aemit("finished", app);
+            app.outer_emitter.aemit("finished", worker_report, app);
         }, random(20));
     }
     stop() {
@@ -49,7 +55,7 @@ class RandomAppWorker {
             this.connection.removeAllListeners("message");
         }
     }
-    connection() {
+    get_connection() {
         return this.connection;
     }
 

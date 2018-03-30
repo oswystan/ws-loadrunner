@@ -30,11 +30,6 @@ class LoadRunner {
         this.worker_group = new WorkerGroup();
         this.argv         = argv;
         this.main_report  = null;
-
-        //FIXME
-        this.emu_connection_counter = 0;
-        this.emu_worker_counter = 0;
-        this.exit = 0;
     }
     /**
      * messages avaliable:
@@ -49,11 +44,11 @@ class LoadRunner {
     }
     prepare() {
         let pool = this.pool;
-        pool.on("opened", this.on_connection_pool_opened.bind(this));
-        pool.on("error", this.on_connection_pool_error.bind(this));
-        pool.on("progress", this.on_connection_progress.bind(this));
-
         let app = null;
+
+        this.install_pool_handler();
+        this.install_workergroup_handler();
+
         try {
             app = require("./" + this.argv.name);
         } catch(e) {
@@ -70,20 +65,18 @@ class LoadRunner {
         }
     }
     start() {
-        this.exit = 0;
         this.main_report.start();
-        this.emulate_worker_progress();
         this.install_inner_handler();
+        this.pool.start();
+        this.worker_group.create(this.argv.amount, this.argv.name);
+        this.worker_group.start(this.pool);
 
         let runner = this;
         setTimeout(()=>{
             runner.inner_emitter.emit("exit");
         }, this.argv.time * 1000);
     }
-    stop() {
-        this.exit = 1;
-        this.inner_emitter.emit("exit");
-    }
+    stop() {}
 
     //=========================================================
     // connection pool callback handler
@@ -111,6 +104,7 @@ class LoadRunner {
     on_exit() {
         this.main_report.stop();
         this.worker_group.stop();
+        this.worker_group.destroy();
         this.pool.stop();
         this.pool.close();
         this.outer_emitter.aemit("finished", this.main_report);
@@ -122,19 +116,14 @@ class LoadRunner {
     install_inner_handler() {
         this.inner_emitter.on("exit", this.on_exit.bind(this));
     }
-    emulate_connection_progress() {
-        let runner = this;
-        runner.on_connection_progress({connected: runner.emu_connection_counter++, failed: runner.emu_connection_counter});
-        if (runner.exit == 0) {
-            setTimeout(runner.emulate_connection_progress.bind(runner), 100);
-        }
+    install_pool_handler() {
+        let pool = this.pool;
+        pool.on("opened", this.on_connection_pool_opened.bind(this));
+        pool.on("error", this.on_connection_pool_error.bind(this));
+        pool.on("progress", this.on_connection_progress.bind(this));
     }
-    emulate_worker_progress() {
-        let runner = this;
-        runner.on_worker_progress({counter: runner.emu_worker_counter++});
-        if (runner.exit == 0) {
-            setTimeout(runner.emulate_worker_progress.bind(runner), 100);
-        }
+    install_workergroup_handler() {
+        this.worker_group.on("progress", this.on_worker_progress.bind(this));
     }
 };
 
@@ -195,7 +184,7 @@ class ConnectionPool {
     }
 
     get() {
-        return this.pool.pop();
+        return this.active.pop();
     }
     put(connection) {
         this.active.push(connection);
@@ -236,6 +225,7 @@ class WorkerGroup {
         this.apps = [];
         this.pool = null;
         this.outer_emitter = emitter();
+        this.counter = 0;
     }
     create(cnt, app_name) {
         while (cnt > 0) {
@@ -248,6 +238,7 @@ class WorkerGroup {
     }
     start(connection_pool) {
         this.exit = 0;
+        this.counter = 0;
         this.apps.forEach(app => {
             let conn = connection_pool.get();
             if (conn) {
@@ -262,13 +253,11 @@ class WorkerGroup {
         this.exit = 1;
         this.apps.forEach(app => {
             app.stop();
-            app.off("finished");
-            app.off("error");
         });
     }
 
     on_app_finished(report, app) {
-        this.outer_emitter.aemit("progress");
+        this.outer_emitter.emit("progress", {counter: ++this.counter});
         app.stop();
         if (this.exit) {
             this.outer_emitter.aemit("finished");
@@ -276,7 +265,7 @@ class WorkerGroup {
         }
 
         //start next round
-        this.pool.put(app.connection());
+        this.pool.put(app.get_connection());
         let conn = this.pool.get();
         if (conn) {
             app.start(conn);
@@ -290,7 +279,7 @@ class WorkerGroup {
      * messages avaliable:
      *     finished - handler(MainReport, WorkerGroup);
      *     error    - handler({error: ERRNO, desc: ''}, WorkerGroup)
-     *     progress - handler();
+     *     progress - handler({counter:Number});
      */
     on(msg, handler) {
         this.outer_emitter.on(msg, handler);
@@ -314,7 +303,7 @@ class WorkerApp {
             this.connection.removeAllListeners("message");
         }
     }
-    connection() {
+    get_connection() {
         return this.connection;
     }
 
