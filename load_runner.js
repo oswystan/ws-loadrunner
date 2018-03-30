@@ -23,13 +23,14 @@ const POOL_NAME = "fixed";
 
 class LoadRunner {
     constructor(argv) {
-        this.inner_emitter = emitter();
-        this.outer_emitter = emitter();
+        this.inner_emitter  = emitter();
+        this.outer_emitter  = emitter();
 
-        this.pool         = ConnectionPoolFactory.create(POOL_NAME);
-        this.worker_group = new WorkerGroup();
-        this.argv         = argv;
-        this.main_report  = null;
+        this.pool           = ConnectionPoolFactory.create(POOL_NAME);
+        this.worker_group   = new WorkerGroup();
+        this.argv           = argv;
+        this.main_report    = null;
+        this.counter_report = 0;
     }
     /**
      * messages avaliable:
@@ -65,6 +66,7 @@ class LoadRunner {
         }
     }
     start() {
+        this.counter_report = 0;
         this.main_report.start();
         this.install_inner_handler();
         this.pool.start();
@@ -94,8 +96,10 @@ class LoadRunner {
     //=========================================================
     // worker group callback handler
     //=========================================================
-    on_worker_progress(msg) {
-        this.outer_emitter.aemit("progress", msg);
+    on_worker_report(report) {
+        this.counter_report++;
+        this.outer_emitter.aemit("progress", {counter: this.counter_report});
+        this.main_report.on_worker_report(report);
     }
 
     //=========================================================
@@ -123,7 +127,7 @@ class LoadRunner {
         pool.on("progress", this.on_connection_progress.bind(this));
     }
     install_workergroup_handler() {
-        this.worker_group.on("progress", this.on_worker_progress.bind(this));
+        this.worker_group.on("worker-report", this.on_worker_report.bind(this));
     }
 };
 
@@ -263,7 +267,7 @@ class WorkerGroup {
     }
 
     on_app_finished(report, app) {
-        this.outer_emitter.emit("progress", {counter: ++this.counter});
+        this.outer_emitter.emit("worker-report", report);
         app.stop();
         if (this.exit) {
             this.outer_emitter.aemit("finished");
@@ -283,9 +287,9 @@ class WorkerGroup {
 
     /**
      * messages avaliable:
-     *     finished - handler(MainReport, WorkerGroup);
-     *     error    - handler({error: ERRNO, desc: ''}, WorkerGroup)
-     *     progress - handler({counter:Number});
+     *     finished        - handler();
+     *     error           - handler({error: ERRNO, desc: ''}, WorkerGroup)
+     *     worker-report   - handler(WorkerReport);
      */
     on(msg, handler) {
         this.outer_emitter.on(msg, handler);

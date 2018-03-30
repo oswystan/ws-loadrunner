@@ -17,6 +17,7 @@ const logw = require("./log").logw;
 const loge = require("./log").loge;
 const log  = require("./log").log;
 const emitter = require('./emitter');
+const report = require('./report');
 const printf = require('printf');
 
 class ClusterMaster {
@@ -40,6 +41,8 @@ class ClusterMaster {
         this.msg_stop    = {type:'request', cmd:'stop',    name:argv.name};
 
         this.workers     = [];
+        this.argv        = argv;
+        this.cluster_report = report('cluster', argv);
         this.reset_counter();
         this.cnt_workers = argv.worker;
         for (let i=0; i<argv.worker; i++) {
@@ -49,6 +52,7 @@ class ClusterMaster {
         cluster.on('online', (worker)=>{
             worker.connection = {connected: 0, failed: 0};
             worker.progress = {counter: 0};
+            worker.main_report_ = report("main", argv);
             this.workers.push(worker);
             if (this.workers.length === argv.worker) {
                 logi("all workers online:");
@@ -62,6 +66,7 @@ class ClusterMaster {
             this.workers.splice(this.workers.indexOf(worker)>>>0, 1);
             if (this.workers.length === 0) {
                 logi("all workers exit.");
+                log(this.cluster_report.stringify());
                 process.exit(0);
             }
         });
@@ -137,9 +142,10 @@ class ClusterMaster {
         }
     }
     on_report(msg, worker) {
-        worker.main_report_ = msg.report;
-        logd("got one report: \n", msg.report);
+        worker.main_report_.parse(msg.report);
+        logd(printf("report from worker: %d\n", worker.process.pid), worker.main_report_.stringify());
         this.cnt_report++;
+        this.cluster_report.on_main_report(worker.main_report_);
         if (this.cnt_report === this.cnt_workers) {
             logd("all report received.");
             this.send_worker_request(this.msg_stop);
@@ -147,6 +153,7 @@ class ClusterMaster {
     }
     on_error(msg, worker) {
         loge(msg);
+        this.cluster_report.on_error();
         this.send_worker_request(this.msg_exit, worker);
     }
     on_notify_connection(msg, worker) {

@@ -42,7 +42,6 @@ class RandomAppWorker {
             let worker_report = this.worker_report;
             worker_report.total_request = 1;
             worker_report.end = Date.now();
-            worker_report.total_request = random(2);
             worker_report.total_response_ms = worker_report.end - worker_report.start;
             worker_report.min_response_ms = random(worker_report.total_response_ms/2);
             worker_report.max_response_ms = random(worker_report.total_response_ms);
@@ -69,7 +68,7 @@ class RandomAppWorker {
     }
 };
 
-//module.exports.url = "wss://47.100.110.3:7788/ares/v1.0.0";
+module.exports.url = "wss://47.100.110.3:7788/ares/v1.0.0";
 
 module.exports.WorkerApp = function() {
     return new RandomAppWorker();
