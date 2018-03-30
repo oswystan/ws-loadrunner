@@ -58,6 +58,7 @@ class ClusterMaster {
         });
 
         cluster.on('exit', (worker)=>{
+            logi("worker", worker.process.pid, "exit.");
             this.workers.splice(this.workers.indexOf(worker)>>>0, 1);
             if (this.workers.length === 0) {
                 logi("all workers exit.");
