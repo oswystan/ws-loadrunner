@@ -27,8 +27,7 @@ function main() {
     let yargs = require("yargs")
         .option('u', {
             alias: 'url',
-            //default: 'wss://serverip/random',
-            default: 'ws://10.1.250.219:5000/socket.io/?transport=websocket',
+            default: 'wss://serverip/random',
             describe: 'websocket url',
         })
         .option('a', {

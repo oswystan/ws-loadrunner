@@ -147,6 +147,7 @@ class ConnectionPool {
         this.inner_emitter  = emitter();
         this.outer_emitter  = emitter();
         this.counter_failed = 0;
+        this.failed_threshold = 20;
     }
 
     open(cnt, url) {
@@ -212,9 +213,14 @@ class ConnectionPool {
             }
         });
         conn.on("error", function(e) {
-            this.counter_failed++;
+            cp.counter_failed++;
             cp.outer_emitter.aemit("progress", {connected: cp.pool.length, failed: cp.counter_failed});
             conn.close();
+            if (cp.counter_failed < cp.failed_threshold) {
+                cp.inner_emitter.aemit("open");
+            } else {
+                cp.outer_emitter.aemit("error", {error: errno.CONN_ERR, desc: "too many connection failed"});
+            }
         });
     }
 };
