@@ -170,9 +170,9 @@ class ClusterReport {
     stringify() {
         let s = "";
         if (this.workers_succ === 0) {
-            s += '****************************\n';
-            s += '    NO CLUSTER GENERATED    \n';
-            s += '****************************\n';
+            s += '***********************************\n';
+            s += '    NO CLUSTER REPORT GENERATED    \n';
+            s += '***********************************\n';
             return s;
         }
         s += printf("%18s : %d\n", "workers", this.workers);

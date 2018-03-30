@@ -68,7 +68,7 @@ class RandomAppWorker {
     }
 };
 
-module.exports.url = "wss://47.100.110.3:7788/ares/v1.0.0";
+//module.exports.url = "wss://47.100.110.3:7788/ares/v1.0.0";
 
 module.exports.WorkerApp = function() {
     return new RandomAppWorker();
